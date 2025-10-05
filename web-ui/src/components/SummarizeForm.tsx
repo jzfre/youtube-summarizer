@@ -9,8 +9,6 @@ import ResultDisplay from "./ResultDisplay";
 
 export default function SummarizeForm() {
   const [video, setVideo] = useState("");
-  const [languages, setLanguages] = useState("en");
-  const [model, setModel] = useState("gpt-5-chat-latest");
   const [summaryType, setSummaryType] = useState<
     "concise" | "detailed" | "bullet-points" | "key-insights"
   >("concise");
@@ -32,11 +30,7 @@ export default function SummarizeForm() {
     try {
       const requestData: SummarizeRequest = {
         video: video.trim(),
-        languages: languages
-          .split(",")
-          .map((l) => l.trim())
-          .filter(Boolean),
-        model,
+        model: "gpt-4o",
         summaryType,
         showTranscript,
       };
@@ -62,8 +56,6 @@ export default function SummarizeForm() {
 
   const handleReset = () => {
     setVideo("");
-    setLanguages("en");
-    setModel("gpt-5-chat-latest");
     setSummaryType("concise");
     setShowTranscript(false);
     setResult(null);
@@ -79,7 +71,7 @@ export default function SummarizeForm() {
         <div>
           <label
             htmlFor="video"
-            className="block text-sm font-medium text-gray-700 mb-2"
+            className="block text-sm font-medium text-gray-900 mb-2"
           >
             YouTube URL or Video ID *
           </label>
@@ -89,10 +81,10 @@ export default function SummarizeForm() {
             value={video}
             onChange={(e) => setVideo(e.target.value)}
             placeholder="https://www.youtube.com/watch?v=dQw4w9WgXcQ or dQw4w9WgXcQ"
-            className="w-full px-4 py-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
+            className="w-full px-4 py-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-gray-900 placeholder-gray-500"
             disabled={loading}
           />
-          <p className="mt-2 text-sm text-gray-500">
+          <p className="mt-2 text-sm text-gray-700">
             Enter a full YouTube URL or just the video ID
           </p>
         </div>
@@ -101,7 +93,7 @@ export default function SummarizeForm() {
         <details className="group">
           <summary className="cursor-pointer list-none">
             <div className="flex items-center justify-between py-3 px-4 bg-gray-50 rounded-md hover:bg-gray-100 transition-colors">
-              <span className="font-medium text-gray-700">
+              <span className="font-medium text-gray-900">
                 Advanced Options
               </span>
               <svg
@@ -121,55 +113,11 @@ export default function SummarizeForm() {
           </summary>
 
           <div className="mt-4 space-y-4 p-4 border border-gray-200 rounded-md">
-            {/* Languages */}
-            <div>
-              <label
-                htmlFor="languages"
-                className="block text-sm font-medium text-gray-700 mb-2"
-              >
-                Preferred Languages
-              </label>
-              <input
-                type="text"
-                id="languages"
-                value={languages}
-                onChange={(e) => setLanguages(e.target.value)}
-                placeholder="en, de, es"
-                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                disabled={loading}
-              />
-              <p className="mt-1 text-sm text-gray-500">
-                Comma-separated language codes (e.g., en, de, es)
-              </p>
-            </div>
-
-            {/* Model Selection */}
-            <div>
-              <label
-                htmlFor="model"
-                className="block text-sm font-medium text-gray-700 mb-2"
-              >
-                OpenAI Model
-              </label>
-              <select
-                id="model"
-                value={model}
-                onChange={(e) => setModel(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                disabled={loading}
-              >
-                <option value="gpt-5-chat-latest">GPT-5 Chat (Latest)</option>
-                <option value="gpt-5-2025-08-07">GPT-5 (2025-08-07)</option>
-                <option value="gpt-5-codex">GPT-5 Codex</option>
-                <option value="gpt-4o">GPT-4o</option>
-              </select>
-            </div>
-
             {/* Summary Type */}
             <div>
               <label
                 htmlFor="summaryType"
-                className="block text-sm font-medium text-gray-700 mb-2"
+                className="block text-sm font-medium text-gray-900 mb-2"
               >
                 Summary Type
               </label>
@@ -177,7 +125,7 @@ export default function SummarizeForm() {
                 id="summaryType"
                 value={summaryType}
                 onChange={(e) => setSummaryType(e.target.value as any)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900"
                 disabled={loading}
               >
                 <option value="concise">Concise (3-5 sentences)</option>
@@ -199,7 +147,7 @@ export default function SummarizeForm() {
               />
               <label
                 htmlFor="showTranscript"
-                className="ml-2 text-sm text-gray-700"
+                className="ml-2 text-sm text-gray-900"
               >
                 Include full transcript in results
               </label>
@@ -231,7 +179,7 @@ export default function SummarizeForm() {
       {loading && (
         <div className="mt-8 p-8 bg-white rounded-lg shadow-lg">
           <LoadingSpinner />
-          <p className="text-center mt-4 text-gray-600">
+          <p className="text-center mt-4 text-gray-900">
             Fetching transcript and generating summary...
           </p>
         </div>
