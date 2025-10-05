@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  youtube-summarizer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: youtube-summarizer
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - NODE_ENV=production
+      - PYTHON_EXECUTABLE=/usr/bin/python3
+      - PYTHON_CLI_PATH=/app/cli/youtube_summarizer.py
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s

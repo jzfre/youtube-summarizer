@@ -1,0 +1,42 @@
+# Node modules
+node_modules
+web-ui/node_modules
+web-ui/.next
+npm-debug.log*
+
+# Python
+cli/venv
+cli/__pycache__
+**/__pycache__
+**/*.pyc
+**/*.pyo
+**/*.pyd
+.Python
+
+# Environment files
+.env
+.env.local
+.env*.local
+web-ui/.env.local
+cli/.env
+
+# Git
+.git
+.gitignore
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Documentation
+README.md
+LICENSE
