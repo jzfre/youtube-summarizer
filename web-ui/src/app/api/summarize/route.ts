@@ -19,8 +19,32 @@ export async function POST(request: NextRequest) {
 
     const runner = new PythonRunner();
 
+    // First, try to list available transcripts to auto-detect language
+    let languagesToTry = body.languages || ["en"];
+
+    try {
+      const transcriptListOutput = await runner.listTranscripts(body.video);
+
+      // Parse available language codes from the output
+      const langCodeMatches = transcriptListOutput.match(/\(([a-z]{2}(?:-[A-Z]{2})?)\)/g);
+      if (langCodeMatches && langCodeMatches.length > 0) {
+        const availableLanguages = langCodeMatches.map(match => match.replace(/[()]/g, ''));
+
+        // Check if preferred language is available
+        const preferredLang = languagesToTry[0];
+        if (!availableLanguages.includes(preferredLang)) {
+          // Use the first available language instead
+          console.log(`Preferred language '${preferredLang}' not available. Using '${availableLanguages[0]}' instead.`);
+          languagesToTry = [availableLanguages[0]];
+        }
+      }
+    } catch (listError) {
+      // If listing fails, continue with default language
+      console.error("Failed to list transcripts, using default language:", listError);
+    }
+
     const output = await runner.summarize(body.video, {
-      languages: body.languages || ["en"],
+      languages: languagesToTry,
       model: body.model || "gpt-5-chat-latest",
       summaryType: body.summaryType || "concise",
       showTranscript: body.showTranscript || false,
