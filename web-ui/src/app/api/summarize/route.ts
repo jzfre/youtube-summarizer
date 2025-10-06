@@ -19,8 +19,8 @@ export async function POST(request: NextRequest) {
 
     const runner = new PythonRunner();
 
-    // First, try to list available transcripts to auto-detect language
-    let languagesToTry = body.languages || ["en"];
+    // Step 1: List available transcripts
+    let languagesToTry = ["en"]; // Default fallback
 
     try {
       const transcriptListOutput = await runner.listTranscripts(body.video);
@@ -29,17 +29,57 @@ export async function POST(request: NextRequest) {
       const langCodeMatches = transcriptListOutput.match(/\(([a-z]{2}(?:-[A-Z]{2})?)\)/g);
       if (langCodeMatches && langCodeMatches.length > 0) {
         const availableLanguages = langCodeMatches.map(match => match.replace(/[()]/g, ''));
+        console.log(`Available transcript languages: ${availableLanguages.join(', ')}`);
 
-        // Check if preferred language is available
-        const preferredLang = languagesToTry[0];
-        if (!availableLanguages.includes(preferredLang)) {
-          // Use the first available language instead
-          console.log(`Preferred language '${preferredLang}' not available. Using '${availableLanguages[0]}' instead.`);
-          languagesToTry = [availableLanguages[0]];
+        // Step 2: Get a small sample of the first available transcript to detect language
+        try {
+          const sampleTranscript = await runner.getTranscript(body.video, [availableLanguages[0]]);
+          const sample = sampleTranscript.substring(0, 500); // First 500 chars
+
+          // Step 3: Use AI to detect the language
+          const { OpenAI } = await import('openai');
+          const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+          const languageDetection = await openai.chat.completions.create({
+            model: "gpt-4o-mini",
+            messages: [
+              {
+                role: "system",
+                content: "You are a language detection assistant. Respond with ONLY the two-letter ISO 639-1 language code (e.g., 'en', 'es', 'sk', 'de', 'fr'). Nothing else."
+              },
+              {
+                role: "user",
+                content: `What language is this text in? Respond with only the language code:\n\n${sample}`
+              }
+            ],
+            temperature: 0
+          });
+
+          const detectedLang = languageDetection.choices[0].message.content?.trim().toLowerCase() || 'en';
+          console.log(`Detected language: ${detectedLang}`);
+
+          // Step 4: Check if detected language is available in transcripts
+          if (availableLanguages.includes(detectedLang)) {
+            console.log(`Using detected language: ${detectedLang}`);
+            languagesToTry = [detectedLang];
+          } else if (availableLanguages.includes('en')) {
+            console.log(`Detected language '${detectedLang}' not available. Using English.`);
+            languagesToTry = ['en'];
+          } else {
+            console.log(`Neither detected language nor English available. Using: ${availableLanguages[0]}`);
+            languagesToTry = [availableLanguages[0]];
+          }
+        } catch (detectionError) {
+          console.error("Failed to detect language:", detectionError);
+          // Fallback to English if available
+          if (availableLanguages.includes('en')) {
+            languagesToTry = ['en'];
+          } else {
+            languagesToTry = [availableLanguages[0]];
+          }
         }
       }
     } catch (listError) {
-      // If listing fails, continue with default language
       console.error("Failed to list transcripts, using default language:", listError);
     }
 

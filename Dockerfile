@@ -2,7 +2,7 @@
 FROM node:20-alpine AS base
 
 # Install Python and dependencies
-RUN apk add --no-cache python3 py3-pip
+RUN apk add --no-cache python3 py3-pip python3-dev
 
 # Stage 1: Build the Next.js app
 FROM base AS builder
@@ -35,15 +35,18 @@ WORKDIR /app
 # Install production dependencies only
 RUN apk add --no-cache python3 py3-pip
 
-# Copy Python CLI and dependencies
-COPY --from=python-setup /usr/lib/python3.11/site-packages /usr/lib/python3.11/site-packages
-COPY --from=python-setup /app/cli /app/cli
+# Install Python dependencies directly in production image
+COPY cli/requirements.txt /tmp/requirements.txt
+RUN pip3 install --no-cache-dir -r /tmp/requirements.txt --break-system-packages && rm /tmp/requirements.txt
+
+# Copy Python CLI source
+COPY cli/ /app/cli
 
 # Copy Next.js build
 COPY --from=builder /app/web-ui/.next /app/web-ui/.next
 COPY --from=builder /app/web-ui/public /app/web-ui/public
 COPY --from=builder /app/web-ui/package*.json /app/web-ui/
-COPY --from=builder /app/web-ui/next.config.ts /app/web-ui/next.config.ts
+COPY --from=builder /app/web-ui/next.config.js /app/web-ui/
 
 # Install production Node modules
 WORKDIR /app/web-ui

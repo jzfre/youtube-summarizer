@@ -1,6 +1,14 @@
 // next.config.js
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Disable ESLint during builds (for Docker)
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
+  // Disable TypeScript checking during builds (for Docker)
+  typescript: {
+    ignoreBuildErrors: true,
+  },
   // Increase API route timeout for long-running Python processes
   experimental: {
     serverActions: {

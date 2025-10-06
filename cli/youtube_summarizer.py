@@ -158,9 +158,9 @@ class YouTubeSummarizer:
             "bullet-points": "Summarize the following video transcript as bullet points, highlighting the main topics and key takeaways:",
             "key-insights": "Extract and explain the key insights and most important information from the following video transcript:"
         }
-        
+
         prompt = prompts.get(summary_type, prompts["concise"])
-        
+
         try:
             response = self.client.chat.completions.create(
                 model=model,

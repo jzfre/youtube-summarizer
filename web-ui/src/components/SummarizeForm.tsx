@@ -30,7 +30,7 @@ export default function SummarizeForm() {
     try {
       const requestData: SummarizeRequest = {
         video: video.trim(),
-        model: "gpt-4o",
+        model: "gpt-5-chat-latest",
         summaryType,
         showTranscript,
       };
