@@ -30,10 +30,14 @@ export async function POST(request: NextRequest) {
       if (langCodeMatches && langCodeMatches.length > 0) {
         const availableLanguages = langCodeMatches.map(match => match.replace(/[()]/g, ''));
 
-        // Check if preferred language is available
+        // Check if preferred language (en) is available
         const preferredLang = languagesToTry[0];
-        if (!availableLanguages.includes(preferredLang)) {
-          // Use the first available language instead
+        if (availableLanguages.includes(preferredLang)) {
+          // Use preferred language (en)
+          console.log(`Using preferred language: '${preferredLang}'`);
+          languagesToTry = [preferredLang];
+        } else if (availableLanguages.length > 0) {
+          // Only use first available if preferred is NOT available
           console.log(`Preferred language '${preferredLang}' not available. Using '${availableLanguages[0]}' instead.`);
           languagesToTry = [availableLanguages[0]];
         }
