@@ -1,32 +1,30 @@
-// src/app/api/list-transcripts/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { PythonRunner } from "@/lib/pythonRunner";
-import { ListTranscriptsResponse } from "@/lib/types";
+import { extractVideoId } from "@/lib/videoId";
+import { ListTranscriptsResponse, TranscriptInfo } from "@/lib/types";
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
 
-    if (!body.video) {
+    const videoId = body.video ? extractVideoId(body.video) : null;
+    if (!videoId) {
       return NextResponse.json(
         {
           success: false,
-          error: "Video URL or ID is required",
+          error: "Please provide a valid YouTube URL or video ID",
         } as ListTranscriptsResponse,
         { status: 400 }
       );
     }
 
     const runner = new PythonRunner();
-    const output = await runner.listTranscripts(body.video);
+    const output = await runner.listTranscripts(videoId);
 
-    // Parse the output
-    const videoIdMatch = output.match(/Video ID: ([^\n]+)/);
-    const transcripts = [];
-
-    // Simple parsing - you might want to make this more robust
+    // Parse the CLI's human-readable output into structured transcript info.
+    const transcripts: TranscriptInfo[] = [];
     const lines = output.split("\n");
-    let currentTranscript: any = null;
+    let currentTranscript: TranscriptInfo | null = null;
 
     for (const line of lines) {
       if (line.match(/^\d+\. Language:/)) {
@@ -57,7 +55,7 @@ export async function POST(request: NextRequest) {
     const response: ListTranscriptsResponse = {
       success: true,
       data: {
-        videoId: videoIdMatch ? videoIdMatch[1].trim() : "",
+        videoId,
         transcripts,
       },
     };

@@ -5,11 +5,12 @@ Fetches YouTube transcripts and summarizes them using OpenAI GPT-5
 """
 
 import os
+import re
 import sys
 from typing import Optional, List
 import click
-from youtube_transcript_api import YouTubeTranscriptApi
-from youtube_transcript_api._errors import (
+from youtube_transcript_api import (
+    YouTubeTranscriptApi,
     TranscriptsDisabled,
     NoTranscriptFound,
     VideoUnavailable,
@@ -19,6 +20,10 @@ from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
+
+# Rough context-window guard: ~4 chars/token in English, so this stays safely
+# under the ~128k-token window of current default models.
+MAX_TRANSCRIPT_CHARS = 350_000
 
 
 class YouTubeSummarizer:
@@ -48,19 +53,22 @@ class YouTubeSummarizer:
         Returns:
             Video ID string
         """
-        # If it's already an ID (11 characters, no special chars)
-        if len(url_or_id) == 11 and '/' not in url_or_id:
+        url_or_id = url_or_id.strip()
+
+        # Already a bare video ID
+        if re.fullmatch(r'[A-Za-z0-9_-]{11}', url_or_id):
             return url_or_id
-        
-        # Extract from various URL formats
-        if 'youtu.be/' in url_or_id:
-            return url_or_id.split('youtu.be/')[1].split('?')[0]
-        elif 'watch?v=' in url_or_id:
-            return url_or_id.split('watch?v=')[1].split('&')[0]
-        elif 'youtube.com/embed/' in url_or_id:
-            return url_or_id.split('embed/')[1].split('?')[0]
-        else:
-            return url_or_id
+
+        # watch, shorts, live, embed and youtu.be URL formats
+        match = re.search(
+            r'(?:youtube\.com/(?:watch\?(?:[^#]*&)?v=|shorts/|live/|embed/)|youtu\.be/)'
+            r'([A-Za-z0-9_-]{11})',
+            url_or_id,
+        )
+        if match:
+            return match.group(1)
+
+        raise ValueError(f"Could not extract a YouTube video ID from: {url_or_id}")
 
     def get_transcript(
         self, 
@@ -161,6 +169,21 @@ class YouTubeSummarizer:
 
         prompt = prompts.get(summary_type, prompts["concise"])
 
+        if len(text) > MAX_TRANSCRIPT_CHARS:
+            click.echo(
+                f"Warning: transcript is very long ({len(text)} chars); "
+                f"summarizing only the first {MAX_TRANSCRIPT_CHARS} characters.",
+                err=True,
+            )
+            text = text[:MAX_TRANSCRIPT_CHARS]
+
+        # Only pass the token cap when requested; reasoning models such as
+        # gpt-5 reject max_tokens (and non-default temperature), so staying
+        # with API defaults keeps every -m/--model choice working.
+        extra_args = {}
+        if max_tokens is not None:
+            extra_args["max_completion_tokens"] = max_tokens
+
         try:
             response = self.client.chat.completions.create(
                 model=model,
@@ -174,8 +197,7 @@ class YouTubeSummarizer:
                         "content": f"{prompt}\n\n{text}"
                     }
                 ],
-                max_tokens=max_tokens,
-                temperature=0.7
+                **extra_args
             )
             
             return response.choices[0].message.content
@@ -235,7 +257,7 @@ def cli():
               type=click.Choice(['concise', 'detailed', 'bullet-points', 'key-insights']),
               default='concise',
               help='Type of summary to generate')
-@click.option('--output', '-o', type=click.File('w'), default='-',
+@click.option('--output', '-o', type=click.File('w', encoding='utf-8'), default='-',
               help='Output file (default: stdout)')
 @click.option('--show-transcript', is_flag=True,
               help='Include full transcript in output')
@@ -305,7 +327,7 @@ def list_transcripts(video):
 @click.argument('video')
 @click.option('--languages', '-l', multiple=True, default=['en'],
               help='Preferred transcript languages')
-@click.option('--output', '-o', type=click.File('w'),
+@click.option('--output', '-o', type=click.File('w', encoding='utf-8'),
               help='Output file for transcript')
 def transcript(video, languages, output):
     """Get transcript only (without summarization)"""

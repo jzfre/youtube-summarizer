@@ -7,7 +7,11 @@ services:
     ports:
       - "${PORT:-3000}:3000"
     environment:
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:?Set OPENAI_API_KEY in your .env file}
+      - APP_PASSWORD=${APP_PASSWORD:?Set APP_PASSWORD in your .env file (password gating the web UI)}
+      - AUTH_SECRET=${AUTH_SECRET:?Set AUTH_SECRET in your .env file (long random string used to sign session cookies)}
+      # Set COOKIE_SECURE=false in .env only for trusted plain-HTTP (no TLS) use.
+      - COOKIE_SECURE=${COOKIE_SECURE-}
       - NODE_ENV=production
       - PYTHON_EXECUTABLE=/usr/bin/python3
       - PYTHON_CLI_PATH=/app/cli/youtube_summarizer.py

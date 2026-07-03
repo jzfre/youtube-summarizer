@@ -27,7 +27,12 @@ function LoginForm() {
         setSubmitting(false);
         return;
       }
-      router.replace(next.startsWith("/") ? next : "/");
+      // Same-origin paths only: reject "//host" and "/\host" open-redirect forms.
+      const safeNext =
+        next.startsWith("/") && !next.startsWith("//") && !next.startsWith("/\\")
+          ? next
+          : "/";
+      router.replace(safeNext);
       router.refresh();
     } catch {
       setError("Network error");

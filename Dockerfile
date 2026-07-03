@@ -17,25 +17,11 @@ RUN npm ci
 COPY web-ui/ .
 RUN npm run build
 
-# Stage 2: Setup Python CLI
-FROM base AS python-setup
-WORKDIR /app/cli
-
-# Copy CLI requirements and install
-COPY cli/requirements.txt .
-RUN pip3 install --no-cache-dir -r requirements.txt --break-system-packages
-
-# Copy CLI source
-COPY cli/ .
-
-# Stage 3: Production image
+# Stage 2: Production image
 FROM base AS runner
 WORKDIR /app
 
-# Install production dependencies only
-RUN apk add --no-cache python3 py3-pip
-
-# Install Python dependencies directly in production image
+# Install Python dependencies
 COPY cli/requirements.txt /tmp/requirements.txt
 RUN pip3 install --no-cache-dir -r /tmp/requirements.txt --break-system-packages && rm /tmp/requirements.txt
 

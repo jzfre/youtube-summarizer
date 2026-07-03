@@ -1,11 +1,6 @@
-// src/lib/pythonRunner.ts
 import { spawn } from "child_process";
 
-export interface PythonRunnerOptions {
-  command: string;
-  args: string[];
-  env?: NodeJS.ProcessEnv;
-}
+const PROCESS_TIMEOUT_MS = Number(process.env.PYTHON_TIMEOUT_MS) || 10 * 60 * 1000;
 
 export class PythonRunner {
   private pythonPath: string;
@@ -22,19 +17,22 @@ export class PythonRunner {
 
   async run(command: string, args: string[]): Promise<string> {
     return new Promise((resolve, reject) => {
-      const env = {
-        ...process.env,
-        OPENAI_API_KEY: process.env.OPENAI_API_KEY,
-      };
-
       const pythonProcess = spawn(
         this.pythonPath,
         [this.cliPath, command, ...args],
-        { env }
+        { env: process.env }
       );
 
       let stdout = "";
       let stderr = "";
+      let settled = false;
+
+      const timer = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        pythonProcess.kill("SIGKILL");
+        reject(new Error("Processing timed out"));
+      }, PROCESS_TIMEOUT_MS);
 
       pythonProcess.stdout.on("data", (data) => {
         stdout += data.toString();
@@ -45,13 +43,28 @@ export class PythonRunner {
       });
 
       pythonProcess.on("error", (error) => {
-        reject(new Error(`Failed to start Python process: ${error.message}`));
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        console.error(`Failed to start Python process: ${error.message}`);
+        reject(new Error("Failed to start video processing"));
       });
 
       pythonProcess.on("close", (code) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
         if (code !== 0) {
+          // Log the full stderr server-side, but only surface the CLI's own
+          // one-line "Error: ..." message (transcript disabled, video
+          // unavailable, ...) to the client — never raw tracebacks/usage text.
+          console.error(`Python process exited with code ${code}: ${stderr}`);
+          const cliError = stderr
+            .split("\n")
+            .reverse()
+            .find((line) => line.startsWith("Error: "));
           reject(
-            new Error(`Python process exited with code ${code}: ${stderr}`)
+            new Error(cliError ? cliError.slice("Error: ".length) : "Video processing failed")
           );
         } else {
           resolve(stdout);
@@ -69,7 +82,7 @@ export class PythonRunner {
       showTranscript?: boolean;
     } = {}
   ): Promise<string> {
-    const args = [video];
+    const args: string[] = [];
 
     if (options.languages && options.languages.length > 0) {
       options.languages.forEach((lang) => {
@@ -89,15 +102,16 @@ export class PythonRunner {
       args.push("--show-transcript");
     }
 
-    return this.run("summarize", args);
+    // "--" stops option parsing so video IDs starting with "-" work.
+    return this.run("summarize", [...args, "--", video]);
   }
 
   async listTranscripts(video: string): Promise<string> {
-    return this.run("list-transcripts", [video]);
+    return this.run("list-transcripts", ["--", video]);
   }
 
   async getTranscript(video: string, languages?: string[]): Promise<string> {
-    const args = [video];
+    const args: string[] = [];
 
     if (languages && languages.length > 0) {
       languages.forEach((lang) => {
@@ -105,6 +119,6 @@ export class PythonRunner {
       });
     }
 
-    return this.run("transcript", args);
+    return this.run("transcript", [...args, "--", video]);
   }
 }
