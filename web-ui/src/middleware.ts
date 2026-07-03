@@ -5,6 +5,14 @@ export async function middleware(req: NextRequest) {
   const token = req.cookies.get(AUTH_COOKIE)?.value;
   if (await verifySession(token)) return NextResponse.next();
 
+  // API clients get a JSON 401 instead of a redirect to the login page HTML.
+  if (req.nextUrl.pathname.startsWith("/api/")) {
+    return NextResponse.json(
+      { success: false, error: "Unauthorized" },
+      { status: 401 },
+    );
+  }
+
   const url = req.nextUrl.clone();
   url.pathname = "/login";
   const next = req.nextUrl.pathname + req.nextUrl.search;

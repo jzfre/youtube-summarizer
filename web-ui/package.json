@@ -1,6 +1,8 @@
 {
-  "name": "web-ui",
+  "name": "youtube-summarizer-web",
   "version": "0.1.0",
+  "description": "Next.js web UI for the YouTube video summarizer",
+  "license": "MIT",
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",

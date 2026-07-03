@@ -1,6 +1,6 @@
 # YouTube Video Summarizer
 
-An AI-powered web application that generates intelligent summaries of YouTube videos using transcripts and OpenAI's GPT models.
+Paste a YouTube link, get an AI-generated summary. A self-hostable web app (plus a standalone CLI) that fetches video transcripts and summarizes them with OpenAI models — no video download, no audio transcription, just the captions YouTube already has.
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.11+-blue.svg)
@@ -8,43 +8,57 @@ An AI-powered web application that generates intelligent summaries of YouTube vi
 
 ## Features
 
-- 🤖 **AI-Powered Summaries** - Uses OpenAI GPT models for accurate and intelligent summaries
-- 🌍 **Auto Language Detection** - Automatically detects and uses available transcript languages
-- ⚡ **Fast & Easy** - Simply paste a YouTube URL and get your summary in seconds
-- 🎯 **Multiple Summary Types** - Choose from concise, detailed, bullet points, or key insights
-- 📝 **Transcript Export** - Optionally view the full transcript alongside the summary
-- 🐳 **Docker Ready** - Easy deployment with Docker Compose
+- 🤖 **AI-Powered Summaries** — concise, detailed, bullet-point, or key-insight summaries via OpenAI
+- 🌍 **Auto Language Detection** — detects the transcript's language and picks the best available track
+- ⚡ **Fast & Cheap** — works from the transcript, so there's no video/audio processing
+- 🔐 **Shared-Password Gate** — simple login protects your deployment (and your API key) from strangers
+- 📝 **Transcript Export** — optionally view or save the full transcript
+- 🐳 **Docker Ready** — one `docker compose up` to deploy
+- 🖥️ **CLI Included** — the Python core is a standalone CLI you can script with
 
-## Quick Start
-
-### Using Docker (Recommended)
+## Quick Start (Docker)
 
 1. **Clone the repository:**
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/jzfre/youtube-summarizer.git
 cd youtube-summarizer
 ```
 
-2. **Create `.env` file:**
+2. **Create your `.env`:**
 ```bash
 cp .env.example .env
 ```
 
-3. **Add your OpenAI API key to `.env`:**
+3. **Fill in the required values in `.env`:**
 ```env
 OPENAI_API_KEY=sk-your-openai-api-key-here
+APP_PASSWORD=pick-a-password          # shared password for the web UI
+AUTH_SECRET=$(openssl rand -hex 32)   # signs session cookies
 PORT=3000
 ```
 
 4. **Start the application:**
 ```bash
-docker-compose up -d
+docker compose up -d
 ```
 
-5. **Access the application:**
-Open your browser to `http://localhost:3000`
+5. **Open** `http://localhost:3000`, enter your password, and paste a YouTube link.
 
-For more Docker details, see [README.docker.md](README.docker.md)
+For more Docker details, see [README.docker.md](README.docker.md).
+
+## How It Works
+
+```
+Browser ──► Next.js web UI ──► API routes ──► Python CLI ──► youtube-transcript-api
+   ▲            (auth gate)         │              │
+   └────────── summary ◄────────────┴── OpenAI ◄───┘
+```
+
+1. **Extract Video ID** — parses any YouTube URL form (`watch`, `youtu.be`, `shorts`, `live`, `embed`) or a bare ID
+2. **Fetch Transcript** — `youtube-transcript-api` retrieves the captions
+3. **Detect Language** — lists available transcript tracks and picks the video's own language when possible
+4. **Summarize** — the transcript goes to an OpenAI model with your chosen summary style
+5. **Display** — formatted summary (and optionally the transcript) in the web UI
 
 ## Development Setup
 
@@ -54,246 +68,160 @@ For more Docker details, see [README.docker.md](README.docker.md)
 - Python 3.11+
 - OpenAI API key
 
-### Web UI Setup
+### CLI (Python)
 
-1. **Navigate to web-ui directory:**
+```bash
+cd cli
+python3 -m venv venv
+source venv/bin/activate    # Windows: venv\Scripts\activate
+pip install -r requirements.txt
+cp .env.example .env        # add your OpenAI API key
+python youtube_summarizer.py summarize "https://www.youtube.com/watch?v=VIDEO_ID"
+```
+
+More CLI options (summary styles, languages, models, output files): see [cli/README.md](cli/README.md).
+
+### Web UI (Next.js)
+
 ```bash
 cd web-ui
-```
-
-2. **Install dependencies:**
-```bash
 npm install
+cp .env.example .env.local  # fill in the values (see below)
+npm run dev
 ```
 
-3. **Create `.env.local` file:**
-```bash
-cp .env.example .env.local
-```
+`.env.local` needs:
 
-4. **Configure environment variables in `.env.local`:**
 ```env
 OPENAI_API_KEY=sk-your-openai-api-key-here
 PYTHON_CLI_PATH=/absolute/path/to/cli/youtube_summarizer.py
 PYTHON_EXECUTABLE=/absolute/path/to/cli/venv/bin/python
+# APP_PASSWORD / AUTH_SECRET are optional in development
+# (defaults: password "dev-password", an insecure dev signing secret)
 ```
 
-5. **Start development server:**
-```bash
-npm run dev
-```
+The web UI shells out to the Python CLI, so set up the CLI first.
 
-The web UI will be available at `http://localhost:3000`
+## Authentication
 
-### CLI Setup
+The web UI is gated by a single shared password (`APP_PASSWORD`). Successful login sets an
+HMAC-signed, httpOnly session cookie (signed with `AUTH_SECRET`, 2-day expiry). All pages and
+API routes are protected by middleware; unauthenticated API calls get a JSON `401`.
 
-1. **Navigate to cli directory:**
-```bash
-cd cli
-```
+- In **production**, `APP_PASSWORD` and `AUTH_SECRET` are required — the compose file refuses
+  to start without them, and the app fails closed if they're missing.
+- The session cookie is marked `Secure` in production, so **serve the app over HTTPS** —
+  behind plain HTTP the browser will drop the cookie and login won't stick.
 
-2. **Create virtual environment:**
-```bash
-python3 -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-```
+This is deliberately simple — a gate for sharing with friends, not a multi-user auth system.
 
-3. **Install dependencies:**
-```bash
-pip install -r requirements.txt
-```
+## Environment Variables
 
-4. **Create `.env` file:**
-```bash
-cp .env.example .env
-```
+| Variable            | Where              | Purpose                                              |
+| ------------------- | ------------------ | ---------------------------------------------------- |
+| `OPENAI_API_KEY`    | all                | OpenAI API key (required)                            |
+| `APP_PASSWORD`      | web UI / Docker    | Shared password for the web UI (required in prod)    |
+| `AUTH_SECRET`       | web UI / Docker    | Random string signing session cookies (required in prod) |
+| `PORT`              | Docker             | Host port to expose (default 3000)                   |
+| `PYTHON_CLI_PATH`   | web UI (dev)       | Absolute path to `cli/youtube_summarizer.py`         |
+| `PYTHON_EXECUTABLE` | web UI (dev)       | Python interpreter (e.g. the CLI's venv python)      |
 
-5. **Add your OpenAI API key to `.env`:**
-```env
-OPENAI_API_KEY=sk-your-openai-api-key-here
-```
+## API Endpoints
 
-6. **Test the CLI:**
-```bash
-python youtube_summarizer.py summarize "https://www.youtube.com/watch?v=VIDEO_ID"
-```
+All routes require a valid session cookie (login via the web UI):
 
-## Usage
-
-### Web Interface
-
-1. Open the application in your browser
-2. Paste a YouTube URL or video ID
-3. (Optional) Expand "Advanced Options" to:
-   - Choose summary type (concise, detailed, bullet points, key insights)
-   - Include full transcript in results
-4. Click "Summarize Video"
-5. View your AI-generated summary
-
-### CLI
-
-The CLI provides more advanced options:
-
-```bash
-# Basic summarization
-python youtube_summarizer.py summarize "VIDEO_URL"
-
-# With custom options
-python youtube_summarizer.py summarize "VIDEO_URL" \
-  --type detailed \
-  --show-transcript
-
-# List available transcripts
-python youtube_summarizer.py list-transcripts "VIDEO_URL"
-
-# Get transcript only
-python youtube_summarizer.py transcript "VIDEO_URL"
-```
-
-## How It Works
-
-1. **Extract Video ID** - Parses the YouTube URL to get the video ID
-2. **Fetch Transcript** - Uses `youtube-transcript-api` to retrieve video transcripts
-3. **Auto-detect Language** - Automatically selects available transcript language
-4. **Generate Summary** - Sends transcript to OpenAI GPT for intelligent summarization
-5. **Display Results** - Shows formatted summary in the web interface
+- `POST /api/summarize` — generate a summary from a video URL/ID
+- `POST /api/transcript` — fetch the transcript only
+- `POST /api/list-transcripts` — list available transcript languages
 
 ## Project Structure
 
 ```
 youtube-summarizer/
-├── cli/                    # Python CLI application
+├── cli/                    # Python CLI (the summarization core)
 │   ├── youtube_summarizer.py
 │   ├── requirements.txt
 │   └── .env.example
-├── web-ui/                 # Next.js web application
+├── web-ui/                 # Next.js 15 web application
 │   ├── src/
-│   │   ├── app/           # Next.js app router
-│   │   ├── components/    # React components
-│   │   └── lib/          # Utility functions
-│   ├── package.json
+│   │   ├── app/            # App Router pages + API routes
+│   │   ├── components/     # React components
+│   │   ├── lib/            # auth helpers, Python runner
+│   │   └── middleware.ts   # session gate
 │   └── .env.example
-├── Dockerfile             # Docker build configuration
-├── docker-compose.yml     # Docker Compose setup
-├── .dockerignore
-├── README.md             # This file
-└── README.docker.md      # Docker-specific documentation
+├── Dockerfile              # Multi-stage build (Node + Python)
+├── docker-compose.yml
+├── LICENSE
+└── README.md
 ```
 
 ## Tech Stack
 
-### Backend
-- **Python 3.11+**
-- **youtube-transcript-api** - Transcript fetching
-- **OpenAI API** - AI summarization
-- **Click** - CLI framework
-
-### Frontend
-- **Next.js 15** - React framework
-- **TypeScript** - Type safety
-- **Tailwind CSS** - Styling
-- **Axios** - HTTP client
-
-## API Endpoints
-
-The web application exposes these API routes:
-
-- `POST /api/summarize` - Generate summary from video
-- `POST /api/transcript` - Get transcript only
-- `POST /api/list-transcripts` - List available transcript languages
-
-## Environment Variables
-
-### Web UI (`.env.local`)
-```env
-OPENAI_API_KEY=your-openai-api-key
-PYTHON_CLI_PATH=/path/to/cli/youtube_summarizer.py
-PYTHON_EXECUTABLE=/path/to/python
-```
-
-### CLI (`.env`)
-```env
-OPENAI_API_KEY=your-openai-api-key
-```
-
-### Docker (`.env`)
-```env
-OPENAI_API_KEY=your-openai-api-key
-PORT=3000
-```
+- **Next.js 15** (App Router) + **React 19** + **TypeScript** + **Tailwind CSS 4**
+- **Python 3.11+** with **Click**, **youtube-transcript-api**
+- **OpenAI API** for summarization and language detection
+- **Docker** multi-stage build shipping both runtimes in one image
 
 ## Deployment
 
-### Docker Deployment (Recommended)
+### Docker (recommended)
 
-See [README.docker.md](README.docker.md) for detailed Docker deployment instructions.
+See [README.docker.md](README.docker.md).
 
-### Behind Nginx
+### Behind Nginx (with TLS)
 
-Example Nginx configuration:
+Serve over HTTPS in production — the session cookie requires it. Example:
 
 ```nginx
 server {
-    listen 80;
+    listen 443 ssl;
     server_name yourdomain.com;
+
+    # ssl_certificate / ssl_certificate_key via certbot or your CA
 
     location / {
         proxy_pass http://localhost:3000;
         proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
         proxy_set_header Host $host;
-        proxy_cache_bypass $http_upgrade;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
     }
 }
 ```
 
 ## Limitations
 
-- Videos must have available transcripts/captions
-- Transcript quality depends on YouTube's auto-generated or manual captions
-- OpenAI API rate limits apply
-- Processing time varies based on transcript length
+- Videos must have captions (manual or auto-generated) — no captions, no summary
+- Summary quality depends on caption quality
+- OpenAI API rate limits and costs apply
+- Very long transcripts may exceed the model's context window
 
 ## Troubleshooting
 
-### "No transcript available"
-- The video doesn't have captions enabled
-- Try a different video with captions
+**"No transcript available"** — the video has no captions; try another video.
 
-### "OpenAI API error"
-- Check your API key is valid
-- Ensure you have sufficient OpenAI credits
-- Check rate limits
+**"OpenAI API error"** — check your API key, credits, and rate limits.
 
-### "Python module not found"
-- Ensure virtual environment is activated
-- Reinstall dependencies: `pip install -r requirements.txt`
+**Login doesn't stick in production** — you're probably serving over plain HTTP; the session cookie is `Secure`-only in production. Use HTTPS.
 
-### Docker container won't start
-- Check logs: `docker-compose logs`
-- Verify `.env` file exists with valid API key
-- Ensure port is not already in use
+**Docker container won't start** — `docker compose logs`; make sure `.env` sets `OPENAI_API_KEY`, `APP_PASSWORD`, and `AUTH_SECRET`.
+
+**"Python module not found" (dev)** — activate the venv and `pip install -r requirements.txt`; point `PYTHON_EXECUTABLE` at the venv's python.
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Contributions are welcome! Feel free to open an issue or submit a pull request.
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+MIT — see [LICENSE](LICENSE).
 
 ## Acknowledgments
 
-- [youtube-transcript-api](https://github.com/jdepoix/youtube-transcript-api) - For transcript fetching
-- [OpenAI](https://openai.com/) - For GPT models
-- [Next.js](https://nextjs.org/) - For the web framework
-
-## Support
-
-For issues and questions:
-- Open an issue on GitHub
-- Check existing issues for solutions
+- [youtube-transcript-api](https://github.com/jdepoix/youtube-transcript-api) — transcript fetching
+- [OpenAI](https://openai.com/) — summarization models
+- [Next.js](https://nextjs.org/) — web framework
 
 ---
 

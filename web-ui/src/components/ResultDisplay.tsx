@@ -1,8 +1,49 @@
-// src/components/ResultDisplay.tsx (continued)
+"use client";
+
+import { useState } from "react";
 import { SummarizeResponse } from "@/lib/types";
 
 interface ResultDisplayProps {
   result: SummarizeResponse;
+}
+
+// Clipboard API needs a secure context; fall back to execCommand on plain HTTP.
+async function copyText(text: string): Promise<boolean> {
+  if (navigator.clipboard) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      // fall through to the legacy path
+    }
+  }
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.style.position = "fixed";
+  textarea.style.opacity = "0";
+  document.body.appendChild(textarea);
+  textarea.select();
+  try {
+    return document.execCommand("copy");
+  } catch {
+    return false;
+  } finally {
+    document.body.removeChild(textarea);
+  }
+}
+
+function CopyButton({ text, className }: { text: string; className: string }) {
+  const [label, setLabel] = useState("Copy");
+  const handleCopy = async () => {
+    const ok = await copyText(text);
+    setLabel(ok ? "Copied!" : "Copy failed");
+    setTimeout(() => setLabel("Copy"), 2000);
+  };
+  return (
+    <button onClick={handleCopy} className={className}>
+      {label}
+    </button>
+  );
 }
 
 export default function ResultDisplay({ result }: ResultDisplayProps) {
@@ -43,15 +84,10 @@ export default function ResultDisplay({ result }: ResultDisplayProps) {
       <div className="p-6 bg-white border border-gray-200 rounded-lg shadow-sm">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-xl font-bold text-gray-800">Summary</h3>
-          <button
-            onClick={() => {
-              navigator.clipboard.writeText(data.summary);
-              alert("Summary copied to clipboard!");
-            }}
+          <CopyButton
+            text={data.summary}
             className="px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-          >
-            Copy Summary
-          </button>
+          />
         </div>
         <div className="prose max-w-none">
           <p className="text-gray-700 whitespace-pre-wrap leading-relaxed">
@@ -65,15 +101,10 @@ export default function ResultDisplay({ result }: ResultDisplayProps) {
         <div className="p-6 bg-gray-50 border border-gray-200 rounded-lg">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-xl font-bold text-gray-800">Full Transcript</h3>
-            <button
-              onClick={() => {
-                navigator.clipboard.writeText(data.transcript!);
-                alert("Transcript copied to clipboard!");
-              }}
+            <CopyButton
+              text={data.transcript}
               className="px-4 py-2 text-sm bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors"
-            >
-              Copy Transcript
-            </button>
+            />
           </div>
           <div className="max-h-96 overflow-y-auto">
             <p className="text-gray-600 text-sm whitespace-pre-wrap leading-relaxed">

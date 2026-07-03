@@ -1,4 +1,3 @@
-// src/app/page.tsx (continued)
 import SummarizeForm from "@/components/SummarizeForm";
 
 export default function Home() {
