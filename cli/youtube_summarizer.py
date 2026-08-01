@@ -21,9 +21,10 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
-# Rough context-window guard: ~4 chars/token in English, so this stays safely
-# under the ~128k-token window of current default models.
+# Rough prompt-size guard: ~4 chars/token in English, leaving ample room for
+# instructions and the generated summary.
 MAX_TRANSCRIPT_CHARS = 350_000
+DEFAULT_MODEL = "gpt-5.6-sol"
 
 
 class YouTubeSummarizer:
@@ -143,7 +144,7 @@ class YouTubeSummarizer:
     def summarize_text(
         self, 
         text: str, 
-        model: str = "gpt-5-chat-latest",
+        model: str = DEFAULT_MODEL,
         max_tokens: Optional[int] = None,
         summary_type: str = "concise"
     ) -> str:
@@ -152,7 +153,7 @@ class YouTubeSummarizer:
         
         Args:
             text: Text to summarize
-            model: OpenAI model to use (default: gpt-5-chat-latest)
+            model: OpenAI model to use (default: gpt-5.6-sol)
             max_tokens: Maximum tokens in response
             summary_type: Type of summary (concise, detailed, bullet-points)
             
@@ -209,7 +210,7 @@ class YouTubeSummarizer:
         self,
         url_or_id: str,
         languages: Optional[List[str]] = None,
-        model: str = "gpt-5-chat-latest",
+        model: str = DEFAULT_MODEL,
         summary_type: str = "concise"
     ) -> dict:
         """
@@ -251,8 +252,8 @@ def cli():
 @click.argument('video')
 @click.option('--languages', '-l', multiple=True, default=['en'],
               help='Preferred transcript languages (e.g., -l en -l de)')
-@click.option('--model', '-m', default='gpt-5-chat-latest',
-              help='OpenAI model to use (default: gpt-5-chat-latest)')
+@click.option('--model', '-m', default=DEFAULT_MODEL, show_default=True,
+              help='OpenAI model to use')
 @click.option('--type', '-t', 
               type=click.Choice(['concise', 'detailed', 'bullet-points', 'key-insights']),
               default='concise',
