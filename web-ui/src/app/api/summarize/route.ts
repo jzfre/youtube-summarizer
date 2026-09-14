@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { PythonRunner } from "@/lib/pythonRunner";
+import { DEFAULT_MODEL } from "@/lib/models";
 import { extractVideoId, isValidModelName } from "@/lib/videoId";
 import { SummarizeRequest, SummarizeResponse } from "@/lib/types";
 
@@ -53,7 +54,7 @@ export async function POST(request: NextRequest) {
 
     const output = await runner.summarize(videoId, {
       languages: languagesToTry,
-      model: body.model || "gpt-5-chat-latest",
+      model: body.model || DEFAULT_MODEL,
       summaryType: body.summaryType || "concise",
       showTranscript: body.showTranscript || false,
     });

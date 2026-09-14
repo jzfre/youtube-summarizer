@@ -4,6 +4,7 @@
 import { useState } from "react";
 import axios from "axios";
 import { SummarizeRequest, SummarizeResponse } from "@/lib/types";
+import { DEFAULT_MODEL } from "@/lib/models";
 import LoadingSpinner from "./LoadingSpinner";
 import ResultDisplay from "./ResultDisplay";
 
@@ -30,7 +31,7 @@ export default function SummarizeForm() {
     try {
       const requestData: SummarizeRequest = {
         video: video.trim(),
-        model: "gpt-5-chat-latest",
+        model: DEFAULT_MODEL,
         summaryType,
         showTranscript,
       };
