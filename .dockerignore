@@ -40,3 +40,14 @@ Thumbs.db
 # Documentation
 README.md
 LICENSE
+
+# Local virtual environments, test caches and credentials at any depth
+**/.venv
+**/venv
+**/.pytest_cache
+**/.env
+**/.env.*
+**/*.tsbuildinfo
+.github
+web-ui/test-results
+web-ui/playwright-report

@@ -3,22 +3,25 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: youtube-summarizer
     ports:
-      - "${PORT:-3000}:3000"
+      - "${BIND_ADDRESS:-127.0.0.1}:${PORT:-3000}:3000"
     environment:
-      - OPENAI_API_KEY=${OPENAI_API_KEY:?Set OPENAI_API_KEY in your .env file}
-      - APP_PASSWORD=${APP_PASSWORD:?Set APP_PASSWORD in your .env file (password gating the web UI)}
-      - AUTH_SECRET=${AUTH_SECRET:?Set AUTH_SECRET in your .env file (long random string used to sign session cookies)}
-      # Set COOKIE_SECURE=false in .env only for trusted plain-HTTP (no TLS) use.
-      - COOKIE_SECURE=${COOKIE_SECURE-}
-      - NODE_ENV=production
-      - PYTHON_EXECUTABLE=/usr/bin/python3
-      - PYTHON_CLI_PATH=/app/cli/youtube_summarizer.py
+      OPENAI_API_KEY: ${OPENAI_API_KEY:?Set OPENAI_API_KEY in your .env file}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-5.6-sol}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
+      APP_PASSWORD: ${APP_PASSWORD:?Set APP_PASSWORD in your .env file (password gating the web UI)}
+      AUTH_SECRET: ${AUTH_SECRET:?Set AUTH_SECRET in your .env file (long random string used to sign session cookies)}
+      # Set COOKIE_SECURE=false only for trusted plain-HTTP use.
+      COOKIE_SECURE: ${COOKIE_SECURE-}
+      # Enable only behind a proxy that overwrites X-Forwarded-For.
+      TRUST_PROXY: ${TRUST_PROXY:-false}
+      PYTHON_TIMEOUT_MS: ${PYTHON_TIMEOUT_MS:-600000}
+      PYTHON_MAX_OUTPUT_BYTES: ${PYTHON_MAX_OUTPUT_BYTES:-4194304}
+      PYTHON_MAX_CONCURRENT: ${PYTHON_MAX_CONCURRENT:-4}
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
+    stop_grace_period: 15s
+    pids_limit: 128
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true

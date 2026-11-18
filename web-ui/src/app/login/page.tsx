@@ -2,6 +2,7 @@
 
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { safeRedirectPath } from "@/lib/redirect";
 
 function LoginForm() {
   const router = useRouter();
@@ -27,12 +28,7 @@ function LoginForm() {
         setSubmitting(false);
         return;
       }
-      // Same-origin paths only: reject "//host" and "/\host" open-redirect forms.
-      const safeNext =
-        next.startsWith("/") && !next.startsWith("//") && !next.startsWith("/\\")
-          ? next
-          : "/";
-      router.replace(safeNext);
+      router.replace(safeRedirectPath(next));
       router.refresh();
     } catch {
       setError("Network error");

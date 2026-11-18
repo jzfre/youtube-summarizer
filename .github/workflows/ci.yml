@@ -1,0 +1,90 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ['3.11', '3.12']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: |
+            cli/requirements.lock
+            cli/requirements-dev.txt
+      - run: python -m pip install -r cli/requirements-dev.txt
+      - run: python -m pip check
+      - run: python -m pytest cli -q
+      - run: python cli/eval_summary.py --offline
+
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web-ui
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web-ui/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - run: npm run lint
+      - run: npx tsc --noEmit
+      - run: npm run build
+        env:
+          NEXT_TELEMETRY_DISABLED: '1'
+      - run: node scripts/smoke.mjs
+      - run: node scripts/resilience.mjs
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: browser-test-results
+          path: web-ui/test-results/
+          if-no-files-found: ignore
+
+  container:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t youtube-summarizer:ci .
+      - name: Verify runtime and authentication without external API calls
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm --entrypoint /opt/venv/bin/python youtube-summarizer:ci /app/cli/youtube_summarizer.py --help
+          docker run -d --name yts-ci -p 127.0.0.1:3000:3000 \
+            -e APP_PASSWORD=ci-only-password \
+            -e AUTH_SECRET=ci-only-signing-secret-not-for-deployment \
+            youtube-summarizer:ci
+          trap 'docker logs yts-ci; docker rm -f yts-ci' EXIT
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:3000/login > /dev/null; then
+              break
+            fi
+            sleep 2
+          done
+          curl --fail --silent http://127.0.0.1:3000/login > /dev/null
+          status=$(curl --silent --output /tmp/response.json --write-out '%{http_code}' \
+            -X POST -H 'Content-Type: application/json' -d '{}' \
+            http://127.0.0.1:3000/api/summarize)
+          test "$status" = 401
+          test "$(docker exec yts-ci id -u)" != 0

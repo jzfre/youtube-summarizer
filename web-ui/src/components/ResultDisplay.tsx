@@ -54,6 +54,7 @@ export default function ResultDisplay({ result }: ResultDisplayProps) {
         <p className="text-red-700">
           {result.error || "An unknown error occurred"}
         </p>
+        {result.requestId && <p className="mt-2 text-sm text-red-700">Reference: {result.requestId}</p>}
       </div>
     );
   }

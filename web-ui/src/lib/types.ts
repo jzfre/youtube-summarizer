@@ -9,6 +9,8 @@ export interface SummarizeRequest {
 
 export interface SummarizeResponse {
   success: boolean;
+  code?: string;
+  requestId?: string;
   data?: {
     videoId: string;
     transcriptLength: number;
@@ -27,6 +29,7 @@ export interface TranscriptInfo {
 
 export interface ListTranscriptsResponse {
   success: boolean;
+  code?: string;
   data?: {
     videoId: string;
     transcripts: TranscriptInfo[];
@@ -36,6 +39,7 @@ export interface ListTranscriptsResponse {
 
 export interface TranscriptResponse {
   success: boolean;
+  code?: string;
   data?: {
     videoId: string;
     transcript: string;

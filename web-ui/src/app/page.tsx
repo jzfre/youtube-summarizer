@@ -1,9 +1,11 @@
 import SummarizeForm from "@/components/SummarizeForm";
+import SignOutButton from "@/components/SignOutButton";
 
 export default function Home() {
   return (
     <main className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-6xl mx-auto">
+        <SignOutButton />
         {/* Header */}
         <div className="text-center mb-12">
           <h1 className="text-5xl font-bold text-gray-900 mb-4">

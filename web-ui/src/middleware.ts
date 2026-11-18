@@ -22,6 +22,9 @@ export async function middleware(req: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!login|api/auth|_next/static|_next/image|favicon.ico).*)",
+    // Processing routes authenticate inside processingResponse before reading
+    // their streamed bodies. Middleware clones and buffers POST bodies before
+    // route execution, which would defeat the route's size/time limits.
+    "/((?!login|api/|_next/static|_next/image|favicon.ico).*)",
   ],
 };

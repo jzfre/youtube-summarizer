@@ -31,9 +31,12 @@ async function getKey(): Promise<CryptoKey> {
   if (!AUTH_SECRET) {
     throw new Error("AUTH_SECRET is not set");
   }
+  if (!APP_PASSWORD) throw new Error("APP_PASSWORD is not set");
   return crypto.subtle.importKey(
     "raw",
-    encoder.encode(AUTH_SECRET),
+    // Bind sessions to both credentials. Rotating the shared password must
+    // revoke existing sessions too, even when AUTH_SECRET remains unchanged.
+    encoder.encode(JSON.stringify(["session-v2", AUTH_SECRET, APP_PASSWORD])),
     { name: "HMAC", hash: "SHA-256" },
     false,
     ["sign", "verify"],
@@ -61,7 +64,7 @@ export async function signSession(expiresAtMs: number): Promise<string> {
 }
 
 export async function verifySession(token: string | undefined): Promise<boolean> {
-  if (!token) return false;
+  if (!AUTH_CONFIGURED || !token || !/^\d{13}\.[A-Za-z0-9_-]{43}$/.test(token)) return false;
   const dot = token.indexOf(".");
   if (dot < 1) return false;
   const payload = token.slice(0, dot);

@@ -1,10 +1,9 @@
 // src/components/SummarizeForm.tsx
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import axios from "axios";
 import { SummarizeRequest, SummarizeResponse } from "@/lib/types";
-import { DEFAULT_MODEL } from "@/lib/models";
 import LoadingSpinner from "./LoadingSpinner";
 import ResultDisplay from "./ResultDisplay";
 
@@ -16,9 +15,16 @@ export default function SummarizeForm() {
   const [showTranscript, setShowTranscript] = useState(false);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<SummarizeResponse | null>(null);
+  const activeRequest = useRef<AbortController | null>(null);
+
+  useEffect(() => () => {
+    activeRequest.current?.abort();
+    activeRequest.current = null;
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (activeRequest.current) return;
 
     if (!video.trim()) {
       alert("Please enter a YouTube URL or Video ID");
@@ -27,11 +33,12 @@ export default function SummarizeForm() {
 
     setLoading(true);
     setResult(null);
+    const controller = new AbortController();
+    activeRequest.current = controller;
 
     try {
       const requestData: SummarizeRequest = {
         video: video.trim(),
-        model: DEFAULT_MODEL,
         summaryType,
         showTranscript,
       };
@@ -39,20 +46,31 @@ export default function SummarizeForm() {
       const response = await axios.post<SummarizeResponse>(
         "/api/summarize",
         requestData,
-        { timeout: 10 * 60 * 1000 }
+        { timeout: 10 * 60 * 1000, signal: controller.signal }
       );
 
-      setResult(response.data);
+      if (activeRequest.current === controller) setResult(response.data);
     } catch (error) {
-      console.error("Error:", error);
+      if (activeRequest.current !== controller) return;
       setResult({
         success: false,
-        error: axios.isAxiosError(error)
-          ? error.response?.data?.error || error.message
+        requestId: axios.isAxiosError(error) ? error.response?.headers["x-request-id"] : undefined,
+        code: axios.isAxiosError(error) ? error.response?.data?.code : undefined,
+        error: axios.isCancel(error)
+          ? "Processing cancelled."
+          : axios.isAxiosError(error)
+          ? error.response?.status === 401
+            ? "Your session has expired. Sign in again to continue."
+            : error.code === "ECONNABORTED"
+              ? "This request took too long. Try again or choose a shorter video."
+              : error.response?.data?.error || "Could not complete the request. Check your connection and try again."
           : "An unexpected error occurred",
       });
     } finally {
-      setLoading(false);
+      if (activeRequest.current === controller) {
+        activeRequest.current = null;
+        setLoading(false);
+      }
     }
   };
 
@@ -85,6 +103,8 @@ export default function SummarizeForm() {
             placeholder="https://www.youtube.com/watch?v=dQw4w9WgXcQ or dQw4w9WgXcQ"
             className="w-full px-4 py-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-gray-900 placeholder-gray-500"
             disabled={loading}
+            required
+            maxLength={2048}
           />
           <p className="mt-2 text-sm text-gray-700">
             Enter a full YouTube URL or just the video ID
@@ -168,6 +188,12 @@ export default function SummarizeForm() {
           >
             {loading ? "Processing..." : "Summarize Video"}
           </button>
+          {loading && (
+            <button type="button" onClick={() => activeRequest.current?.abort()}
+              className="px-6 py-3 bg-gray-200 text-gray-700 font-medium rounded-md hover:bg-gray-300">
+              Cancel
+            </button>
+          )}
           <button
             type="button"
             onClick={handleReset}
@@ -190,7 +216,12 @@ export default function SummarizeForm() {
       )}
 
       {/* Results */}
-      {!loading && result && <ResultDisplay result={result} />}
+      <div aria-live="polite">
+        {!loading && result && <ResultDisplay result={result} />}
+        {!loading && result?.error === "Your session has expired. Sign in again to continue." && (
+          <a href="/login" className="inline-block mt-4 text-blue-700 underline">Sign in again</a>
+        )}
+      </div>
     </div>
   );
 }

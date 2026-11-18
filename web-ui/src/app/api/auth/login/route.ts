@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { LoginLimiter, loginClientKey } from "@/lib/loginLimiter";
+import { readJsonObject, RequestError } from "@/lib/api";
 import {
   AUTH_CONFIGURED,
   SESSION_COOKIE_OPTIONS,
@@ -7,42 +9,24 @@ import {
   passwordMatches,
 } from "@/lib/auth";
 
-// Minimal brute-force protection for the single shared password:
-// a constant delay on failure plus a small per-IP budget per window.
-const WINDOW_MS = 60_000;
-const MAX_FAILURES_PER_WINDOW = 5;
 const FAILURE_DELAY_MS = 500;
-const failures = new Map<string, { count: number; windowStart: number }>();
-
-function tooManyFailures(ip: string): boolean {
-  const now = Date.now();
-  const entry = failures.get(ip);
-  if (!entry || now - entry.windowStart > WINDOW_MS) return false;
-  return entry.count >= MAX_FAILURES_PER_WINDOW;
-}
-
-function recordFailure(ip: string) {
-  const now = Date.now();
-  const entry = failures.get(ip);
-  if (!entry || now - entry.windowStart > WINDOW_MS) {
-    failures.set(ip, { count: 1, windowStart: now });
-  } else {
-    entry.count++;
-  }
-  // Drop stale entries so the map cannot grow unbounded.
-  if (failures.size > 10_000) {
-    for (const [key, value] of failures) {
-      if (now - value.windowStart > WINDOW_MS) failures.delete(key);
-    }
-  }
-}
+const attempts = new LoginLimiter();
 
 export async function POST(req: NextRequest) {
+  if (!attempts.consume(loginClientKey(req.headers))) {
+    return NextResponse.json(
+      { error: "Too many attempts, try again in a minute" },
+      { status: 429, headers: { "Retry-After": "60" } },
+    );
+  }
   let password: unknown;
   try {
-    ({ password } = await req.json());
-  } catch {
-    return NextResponse.json({ error: "Invalid request" }, { status: 400 });
+    ({ password } = await readJsonObject(req));
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof RequestError ? error.message : "Invalid request" },
+      { status: error instanceof RequestError ? error.status : 400 },
+    );
   }
 
   if (!AUTH_CONFIGURED) {
@@ -53,17 +37,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const ip =
-    req.headers.get("x-forwarded-for")?.split(",")[0].trim() || "unknown";
-  if (tooManyFailures(ip)) {
-    return NextResponse.json(
-      { error: "Too many attempts, try again in a minute" },
-      { status: 429 },
-    );
-  }
-
-  if (typeof password !== "string" || !(await passwordMatches(password))) {
-    recordFailure(ip);
+  if (typeof password !== "string" || password.length > 1024 || !(await passwordMatches(password))) {
     await new Promise((r) => setTimeout(r, FAILURE_DELAY_MS));
     return NextResponse.json({ error: "Incorrect password" }, { status: 401 });
   }

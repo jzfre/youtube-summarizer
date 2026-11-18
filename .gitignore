@@ -1,2 +1,11 @@
 .env
+.env.*
+!.env.example
 .DS_Store
+web-ui/test-results/
+web-ui/playwright-report/
+.venv/
+venv/
+__pycache__/
+.pytest_cache/
+*.py[cod]

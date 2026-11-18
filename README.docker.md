@@ -23,7 +23,10 @@ OPENAI_API_KEY=sk-your-actual-api-key-here
 APP_PASSWORD=pick-a-password          # shared password for the web UI
 AUTH_SECRET=generate-with-openssl     # openssl rand -hex 32
 PORT=3000
+BIND_ADDRESS=127.0.0.1
 ```
+
+Run `openssl rand -hex 32` in the shell and paste its output into `AUTH_SECRET`; `.env` does not execute shell substitutions. Set `OPENAI_MODEL` to a model your OpenAI account or compatible provider supports; `OPENAI_BASE_URL` is optional.
 
 `docker compose up` refuses to start unless all three are set. `APP_PASSWORD`
 gates the web UI; `AUTH_SECRET` signs the session cookie — keep both private.
@@ -33,6 +36,8 @@ gates the web UI; `AUTH_SECRET` signs the session cookie — keep both private.
 ```bash
 docker compose up -d
 ```
+
+The image runs Node 22 and Python 3.11 as the unprivileged `node` user. Python dependencies come from `cli/requirements.lock`. An init process forwards shutdown signals and reaps child processes.
 
 The service will be available at `http://localhost:3000`. Open it, enter your
 password, and paste a YouTube link.
@@ -85,6 +90,8 @@ docker compose down
 docker compose up -d
 ```
 
+The published port binds to `127.0.0.1` by default. A proxy on the same host can reach it, but other machines cannot connect directly. For intentional LAN exposure set `BIND_ADDRESS=0.0.0.0` and configure appropriate host firewall rules.
+
 ## Using with Nginx (HTTPS)
 
 Terminate TLS at the proxy so the `Secure` session cookie is honored:
@@ -99,13 +106,17 @@ server {
     location / {
         proxy_pass http://localhost:3000;
         proxy_http_version 1.1;
+        proxy_read_timeout 610s;
+        client_max_body_size 16k;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-For $remote_addr;
         proxy_set_header X-Forwarded-Proto $scheme;
     }
 }
 ```
+
+The default processing deadline is 600 seconds; keep the proxy timeout above it. Set `TRUST_PROXY=true` only if the proxy overwrites `X-Forwarded-For` as above and clients cannot reach the app directly. Otherwise login throttling intentionally uses one shared bucket. For a chain of proxies, configure trusted client-IP resolution at the ingress before enabling this.
 
 ## Troubleshooting
 
@@ -132,4 +143,6 @@ The container includes a health check that runs every 30 seconds. You can check 
 docker compose ps
 ```
 
-Look for `healthy` status.
+Look for `healthy` status. The probe requests `/login`, so it does not spend API credit or validate YouTube/OpenAI connectivity. Docker health status alone does not restart an unhealthy process; `restart: unless-stopped` restarts an exited container.
+
+For a release, also verify login and logout, unauthenticated `/api/summarize` returning 401, and one representative transcript plus summary if API spending is intended. See [quality and operations](docs/quality.md) for limits and live evaluation instructions.
